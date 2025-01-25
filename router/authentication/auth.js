@@ -5,19 +5,23 @@ import jwt from "jsonwebtoken";
 import "dotenv/config";
 import User from "../../models/users.js";
 
-
 const router = express.Router();
-const tokenBlacklist = new Set();
+const tokenBlacklist = new Map(); // Map for tokens with expiry
 
 const checkTokenBlacklist = (req, res, next) => {
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
 
     if (token && tokenBlacklist.has(token)) {
-        return res.status(401).json({
-            status: false,
-            message: "Token is no longer valid",
-        });
+        const expirationTime = tokenBlacklist.get(token);
+        if (Date.now() > expirationTime) {
+            tokenBlacklist.delete(token);
+        } else {
+            return res.status(401).json({
+                status: false,
+                message: "Token is no longer valid",
+            });
+        }
     }
     next();
 };
@@ -25,13 +29,11 @@ const checkTokenBlacklist = (req, res, next) => {
 router.use(checkTokenBlacklist);
 
 const loginSchema = Joi.object({
-    email: Joi.string().email({
-        minDomainSegments: 2,
-        tlds: ["com", "net"],
-    }),
+    email: Joi.string()
+        .email({ minDomainSegments: 2, tlds: { allow: ["com", "net"] } })
+        .required(),
     password: Joi.string().min(6).required(),
 });
-
 
 const registerSchema = Joi.object({
     name: Joi.string().min(3).max(30).required(),
@@ -39,7 +41,6 @@ const registerSchema = Joi.object({
     password: Joi.string().min(6).required(),
     imageUrl: Joi.string().uri().optional(),
 });
-
 
 router.post("/register", async (req, res) => {
     const { error, value } = registerSchema.validate(req.body);
@@ -50,8 +51,8 @@ router.post("/register", async (req, res) => {
         });
     }
 
-    const user = await User.findOne({ email: value.email });
-    if (user) {
+    const userExists = await User.findOne({ email: value.email });
+    if (userExists) {
         return res.status(403).json({
             status: false,
             message: "Email already exists",
@@ -59,26 +60,22 @@ router.post("/register", async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(value.password, 12);
-    value.password = hashedPassword;
-
-    let newUser = new User({
+    const newUser = new User({
         ...value,
         password: hashedPassword,
         role: "user",
         isStudent: true,
         status: "pending",
     });
-    newUser.imageUrl = req.body.imageUrl; // Save the image URL from Cloudinary
 
-    newUser = await newUser.save();
+    const savedUser = await newUser.save();
 
     res.status(201).json({
         status: true,
         message: "User registered successfully",
-        data: newUser,
+        data: savedUser,
     });
 });
-
 
 router.post("/login", async (req, res) => {
     const { error, value } = loginSchema.validate(req.body);
@@ -105,8 +102,11 @@ router.post("/login", async (req, res) => {
         });
     }
 
-    const token = jwt.sign(user, process.env.AUTH_SECRET);
-
+    const token = jwt.sign(
+        { _id: user._id, email: user.email, role: user.role },
+        process.env.AUTH_SECRET,
+        { expiresIn: "1d" }
+    );
 
     res.status(200).json({
         status: true,
@@ -126,7 +126,7 @@ router.post("/logout", (req, res) => {
         });
     }
 
-    jwt.verify(token, process.env.AUTH_SECRET, (err, user) => {
+    jwt.verify(token, process.env.AUTH_SECRET, (err) => {
         if (err) {
             return res.status(403).json({
                 status: false,
@@ -134,8 +134,7 @@ router.post("/logout", (req, res) => {
             });
         }
 
-        tokenBlacklist.add(token);
-
+        tokenBlacklist.set(token, Date.now() + 24 * 60 * 60 * 1000); // Token expires after 1 day
         res.status(200).json({
             status: true,
             message: "User logged out successfully",
