@@ -12,21 +12,23 @@ export default async function authorization(req, res, next) {
     }
 
     const token = bearerToken.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.AUTH_SECRET);
 
-    if (decoded) {
-      const user = await User.findById(decoded._id);
-
-      if (!user) {
-        return sendResponse(res, 403, null, true, "User Not Found");
-      }
-
-      req.user = decoded;
-      return next();
-    } else {
-      return sendResponse(res, 500, null, true, "Something Went Wrong");
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.AUTH_SECRET);
+    } catch (error) {
+      return sendResponse(res, 403, null, true, "Invalid or expired token");
     }
+
+    const user = await User.findById(decoded._id);
+
+    if (!user) {
+      return sendResponse(res, 403, null, true, "User Not Found");
+    }
+
+    req.user = decoded;
+    return next();
   } catch (err) {
-    return sendResponse(res, 403, null, true, err.message);
+    return sendResponse(res, 500, null, true, "An unexpected error occurred");
   }
 }

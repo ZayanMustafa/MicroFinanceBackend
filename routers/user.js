@@ -1,6 +1,6 @@
 import express from "express";
 import sendResponse from "../helper/sendResponse.js";
-import authorization from "../middlewares/authtication.js   ";
+import authorization from "../middlewares/authtication.js";
 import User from "../models/user.js";
 
 const router = express.Router();
