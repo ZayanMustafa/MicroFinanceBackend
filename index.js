@@ -1,44 +1,24 @@
 import express from "express";
-import http from "http";
-import mongoose from "mongoose";
 import morgan from "morgan";
-import cors from "cors";
-import "dotenv/config";
-import authRoutes from "./router/authentication/auth.js";
+import connectToDB from "./utilis/connectDb.js";
+import authRoutes from "./routers/auth.js";
+import userRoutes from "./routers/user.js";
 
 const app = express();
 const PORT = 4000;
-const server = http.createServer(app);
-
-app.use(
-  cors({
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  })
-);
 
 app.use(morgan("tiny"));
 app.use(express.json());
 
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log("MongoDB connected successfully!");
-  } catch (error) {
-    console.error("Error connecting to MongoDB:", error.message);
-    process.exit(1);
-  }
-};
+connectToDB()
 
-connectDB();
-
-server.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+app.get("/", (req, res) => {
+  res.send("Server is running");
 });
 
 app.use("/auth", authRoutes);
+app.use("/user", userRoutes);
+
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
