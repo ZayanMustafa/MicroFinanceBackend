@@ -1,6 +1,5 @@
 import express from "express";
 import morgan from "morgan";
-import "dotenv/config";
 import connectToDB from "./utilis/connectDb.js";
 import authRoutes from "./routers/auth.js"
 import userRoutes from "./routers/user.js"
@@ -20,4 +19,4 @@ app.get("/", (req, res) => {
 app.use("/auth", authRoutes)
 app.use("/user", userRoutes)
 
-app.listen(PORT, () => console.log("The port is running on " + PORT));
+app.listen(PORT, () => `server is started on ${PORT}`);
